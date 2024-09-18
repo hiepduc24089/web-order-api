@@ -8,6 +8,7 @@ use App\Models\ProductImage;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Stichoza\GoogleTranslate\GoogleTranslate;
 
 class GetProduct extends Command
 {
@@ -30,9 +31,11 @@ class GetProduct extends Command
      *
      * @return void
      */
+    protected $translator;
     public function __construct()
     {
         parent::__construct();
+        $this->translator = new GoogleTranslate('vi');
     }
 
     /**
@@ -69,14 +72,15 @@ class GetProduct extends Command
                                 if (is_array($contentItem) || is_object($contentItem)) {
                                     $apiID = $contentItem['Id'] ?? null;
                                     $name = $contentItem['Title'] ?? null;
-                                    $slug = Str::slug($name);
+                                    $translatedName = $this->translateNameToVietnamese($name);
+                                    $slug = Str::slug($translatedName);
                                     $quantity = $contentItem['MasterQuantity'];
                                     $price = $contentItem['Price']['OriginalPrice'];
 
                                     $product = Product::updateOrCreate(
                                         ['api_id' => $apiID],
                                         [
-                                            'name' => $name,
+                                            'name' => $translatedName,
                                             'slug' => $slug,
                                             'category_id' => $category->id,
                                             'description' => null,
@@ -119,5 +123,13 @@ class GetProduct extends Command
 
         return 0;
     }
-
+    protected function translateNameToVietnamese($name)
+    {
+        try {
+            return $this->translator->translate($name);
+        } catch (\Exception $e) {
+            $this->error('Translation failed: ' . $e->getMessage());
+            return $name;
+        }
+    }
 }

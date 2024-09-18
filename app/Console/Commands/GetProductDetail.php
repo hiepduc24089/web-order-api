@@ -7,6 +7,7 @@ use App\Models\ProductAttribute;
 use App\Models\ProductValue;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
+use Stichoza\GoogleTranslate\GoogleTranslate;
 
 class GetProductDetail extends Command
 {
@@ -29,9 +30,11 @@ class GetProductDetail extends Command
      *
      * @return void
      */
+    protected $translator;
     public function __construct()
     {
         parent::__construct();
+        $this->translator = new GoogleTranslate('vi');
     }
 
     /**
@@ -73,8 +76,8 @@ class GetProductDetail extends Command
                 // Color Attribute -> Save to Value table
                 if (isset($xml->Result->Item->Attributes->ItemAttribute)) {
                     foreach ($xml->Result->Item->Attributes->ItemAttribute as $attribute) {
-                        $propertyName = (string)$attribute->PropertyName ?? null;
                         $value = (string)$attribute->Value ?? null;
+                        $translatedValue = $this->translateNameToVietnamese($value);
                         $imageUrl = isset($attribute->MiniImageUrl) ? (string)$attribute->MiniImageUrl : null;
                         $chineseName = isset($attribute->OriginalValue) ? (string)$attribute->OriginalValue : null;
                         $IsConfigurator = (string)$attribute->IsConfigurator;
@@ -82,7 +85,7 @@ class GetProductDetail extends Command
                             $productValue = ProductValue::updateOrCreate(
                                 [
                                     'product_id' => $product->id,
-                                    'name' => $value,
+                                    'name' => $translatedValue,
                                     'PID' => $chineseName
                                 ],
                                 [
@@ -128,5 +131,13 @@ class GetProductDetail extends Command
         }
         return 0;
     }
-
+    protected function translateNameToVietnamese($name)
+    {
+        try {
+            return $this->translator->translate($name);
+        } catch (\Exception $e) {
+            $this->error('Translation failed: ' . $e->getMessage());
+            return $name;
+        }
+    }
 }
