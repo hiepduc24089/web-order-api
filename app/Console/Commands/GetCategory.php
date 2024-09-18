@@ -42,6 +42,19 @@ class GetCategory extends Command
 
     protected function fetchAndSaveCategories($url, $parent_id = 0, $type = 0, $parentCategoryId = null, $child_id = 0)
     {
+        $keywords = [
+            'quần áo',
+            'phụ kiện',
+            'mẹ và bé',
+            'linh kiện điện tử',
+            'gia dụng',
+            'văn phòng phẩm',
+            'nội thất',
+            'sức khoẻ',
+            'mỹ phẩm',
+            'thể thao'
+        ];
+
         $params = [
             'instanceKey' => env('OTAPI_KEY'),
             'language' => 'en',
@@ -63,21 +76,43 @@ class GetCategory extends Command
                     $api_id = (string)$item->Id;
                     $name = (string)$item->Name;
                     $translatedName = $this->translateNameToVietnamese($name);
-                    dd($translatedName);
-                    $slug = Str::slug($translatedName);
 
-                    Category::updateOrCreate(
-                        ['api_id' => $api_id],
-                        [
-                            'name' => $translatedName,
-                            'slug' => $slug,
-                            'type' => $type,
-                            'parent_id' => $parent_id,
-                            'child_id' => $child_id,
-                        ]
-                    );
+                    // Apply keyword matching only for parent categories (when $parent_id is 0 and $type is parent)
+                    if ($parent_id == 0 && $type == 1) {
+                        if ($this->isKeywordMatch($translatedName, $keywords)) {
+                            $slug = Str::slug($translatedName);
 
-                    $this->info("Category saved: $translatedName (Parent ID: $parent_id, Child ID: $child_id)");
+                            // Save only parent categories that match the keywords
+                            Category::updateOrCreate(
+                                ['api_id' => $api_id],
+                                [
+                                    'name' => $translatedName,
+                                    'slug' => $slug,
+                                    'type' => $type,
+                                    'parent_id' => $parent_id,
+                                    'child_id' => $child_id,
+                                ]
+                            );
+
+                            $this->info("Parent category saved: $translatedName");
+                        } else {
+                            $this->info("Parent category skipped: $translatedName (No keyword match)");
+                        }
+                    } else {
+                        // For non-parent categories, save without keyword matching
+                        $slug = Str::slug($translatedName);
+                        Category::updateOrCreate(
+                            ['api_id' => $api_id],
+                            [
+                                'name' => $translatedName,
+                                'slug' => $slug,
+                                'type' => $type,
+                                'parent_id' => $parent_id,
+                                'child_id' => $child_id,
+                            ]
+                        );
+                        $this->info("Subcategory saved: $translatedName");
+                    }
                 }
             } else {
                 $this->error('No categories found in the API response.');
@@ -85,6 +120,16 @@ class GetCategory extends Command
         } else {
             $this->error('Failed to fetch categories from the API.');
         }
+    }
+
+    protected function isKeywordMatch($translatedName, $keywords)
+    {
+        foreach ($keywords as $keyword) {
+            if (stripos($translatedName, $keyword) !== false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected function translateNameToVietnamese($name)
