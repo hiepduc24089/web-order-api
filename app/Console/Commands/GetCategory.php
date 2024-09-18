@@ -72,10 +72,17 @@ class GetCategory extends Command
             $xml = simplexml_load_string($response->body());
 
             if ($xml && isset($xml->CategoryInfoList->Content->Item)) {
+                $count = 0;
                 foreach ($xml->CategoryInfoList->Content->Item as $item) {
                     $api_id = (string)$item->Id;
                     $name = (string)$item->Name;
                     $translatedName = $this->translateNameToVietnamese($name);
+
+                    // Limit to 10 items for subcategories and sub-subcategories
+                    if ($count >= 10) {
+                        $this->info("Limit reached, skipping the rest of the categories.");
+                        break;
+                    }
 
                     // Apply keyword matching only for parent categories (when $parent_id is 0 and $type is parent)
                     if ($parent_id == 0 && $type == 1) {
@@ -99,7 +106,7 @@ class GetCategory extends Command
                             $this->info("Parent category skipped: $translatedName (No keyword match)");
                         }
                     } else {
-                        // For non-parent categories, save without keyword matching
+                        // For subcategories and sub-subcategories, save without keyword matching
                         $slug = Str::slug($translatedName);
                         Category::updateOrCreate(
                             ['api_id' => $api_id],
@@ -112,6 +119,8 @@ class GetCategory extends Command
                             ]
                         );
                         $this->info("Subcategory saved: $translatedName");
+
+                        $count++;
                     }
                 }
             } else {
