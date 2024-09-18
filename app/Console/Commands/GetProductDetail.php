@@ -106,7 +106,12 @@ class GetProductDetail extends Command
                         foreach ($attributeDetail->Configurators->ValuedConfigurator as $configurator) {
                             $vid = (string)$configurator['Vid'] ?? null;
 
-                            if ($productValue->PID === $vid) {
+                            // Check if a matching ProductValue exists
+                            $productValue = ProductValue::where('product_id', $product->id)
+                                ->where('PID', $vid)
+                                ->first();
+
+                            if ($productValue) {
                                 ProductAttribute::updateOrCreate(
                                     [
                                         'product_value_id' => $productValue->id,
@@ -114,10 +119,12 @@ class GetProductDetail extends Command
                                     ],
                                     [
                                         'quantity' => $quantity,
-                                        'price' => $price
+                                        'price' => $price,
                                     ]
                                 );
                                 $this->info("Product attribute saved for product: {$product->api_id}, VID: {$vid}");
+                            } else {
+                                $this->error("No ProductValue found for PID: {$vid}, product: {$product->api_id}");
                             }
                         }
                     }
