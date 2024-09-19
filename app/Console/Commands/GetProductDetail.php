@@ -55,7 +55,7 @@ class GetProductDetail extends Command
                 'timestamp' => '',
                 'sessionId' => '',
                 'itemParameters' => '',
-                'itemId' => $product->api_id,
+                'itemId' => 'abb-706004846792',
                 'blockList' => 'Description',
             ];
 
@@ -103,9 +103,13 @@ class GetProductDetail extends Command
                         $quantity = isset($attributeDetail->Quantity) ? (int)$attributeDetail->Quantity : null;
                         $price = isset($attributeDetail->Price->OriginalPrice) ? (string)$attributeDetail->Price->OriginalPrice : null;
 
+                        $names = [];
                         foreach ($attributeDetail->Configurators->ValuedConfigurator as $configurator) {
                             $vid = (string)$configurator['Vid'] ?? null;
-
+                            if ($vid) {
+                                $names[] = $vid;
+                            }
+                            $concatenatedName = implode(' & ', $names);
                             // Check if a matching ProductValue exists
                             $productValue = ProductValue::where('product_id', $product->id)
                                 ->where('PID', $vid)
@@ -115,7 +119,7 @@ class GetProductDetail extends Command
                                 ProductAttribute::updateOrCreate(
                                     [
                                         'product_value_id' => $productValue->id,
-                                        'name' => $vid,
+                                        'name' => $concatenatedName,
                                     ],
                                     [
                                         'quantity' => $quantity,
