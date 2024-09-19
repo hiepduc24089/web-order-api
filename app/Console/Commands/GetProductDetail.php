@@ -81,7 +81,7 @@ class GetProductDetail extends Command
                         $imageUrl = isset($attribute->MiniImageUrl) ? (string)$attribute->MiniImageUrl : null;
                         $chineseName = isset($attribute->OriginalValue) ? (string)$attribute->OriginalValue : null;
                         $IsConfigurator = (string)$attribute->IsConfigurator;
-                        if ($IsConfigurator === "true") {
+                        if ($IsConfigurator === "true" && $imageUrl !== null) {
                             $productValue = ProductValue::updateOrCreate(
                                 [
                                     'product_id' => $product->id,
@@ -103,32 +103,60 @@ class GetProductDetail extends Command
                         $quantity = isset($attributeDetail->Quantity) ? (int)$attributeDetail->Quantity : null;
                         $price = isset($attributeDetail->Price->OriginalPrice) ? (string)$attributeDetail->Price->OriginalPrice : null;
 
+                        // Initialize the array to hold all Vid values
                         $names = [];
+
+                        // Collect all Vid values into the $names array
                         foreach ($attributeDetail->Configurators->ValuedConfigurator as $configurator) {
                             $vid = (string)$configurator['Vid'] ?? null;
                             if ($vid) {
-                                $names[] = $vid;
+                                $names[] = $vid; // Add each Vid to the array
                             }
-                            $concatenatedName = implode(' & ', $names);
-                            // Check if a matching ProductValue exists
+                        }
+
+                        // First, check if we have Vid values in $names
+                        if (!empty($names)) {
+                            $firstVid = $names[0]; // Get the first Vid value
                             $productValue = ProductValue::where('product_id', $product->id)
-                                ->where('PID', $vid)
+                                ->where('PID', $firstVid) // Match with the first Vid
                                 ->first();
 
                             if ($productValue) {
-                                ProductAttribute::updateOrCreate(
-                                    [
-                                        'product_value_id' => $productValue->id,
-                                        'name' => $concatenatedName,
-                                    ],
-                                    [
-                                        'quantity' => $quantity,
-                                        'price' => $price,
-                                    ]
-                                );
-                                $this->info("Product attribute saved for product: {$product->api_id}, VID: {$vid}");
+                                // If there are more than 1 Vid values, store only the subsequent ones (index >= 1)
+                                if (count($names) > 1) {
+                                    for ($i = 1; $i < count($names); $i++) {
+                                        $nextVid = $names[$i]; // Get each subsequent Vid
+
+                                        // Store additional attributes with the same ProductValue ID but different names (Vid)
+                                        ProductAttribute::updateOrCreate(
+                                            [
+                                                'product_value_id' => $productValue->id,
+                                                'name' => $nextVid, // Store each subsequent Vid
+                                            ],
+                                            [
+                                                'quantity' => $quantity,
+                                                'price' => $price,
+                                            ]
+                                        );
+                                        $this->info("Product attribute saved for product: {$product->api_id}, VID: {$nextVid}, Index: {$i}");
+                                    }
+                                } else {
+                                    // If there's only 1 Vid, store the first Vid
+                                    ProductAttribute::updateOrCreate(
+                                        [
+                                            'product_value_id' => $productValue->id,
+                                            'name' => $firstVid, // Store the first Vid since it's the only one
+                                        ],
+                                        [
+                                            'quantity' => $quantity,
+                                            'price' => $price,
+                                        ]
+                                    );
+                                    $this->info("Product attribute saved for product: {$product->api_id}, VID: {$firstVid}, Index: 0");
+                                }
                             } else {
-                                $this->error("No ProductValue found for PID: {$vid}, product: {$product->api_id}");
+                                // If the first Vid doesn't match, log an error
+                                $this->error("No ProductValue found for PID: {$firstVid}, product: {$product->api_id}");
                             }
                         }
                     }
