@@ -55,7 +55,7 @@ class GetProductDetail extends Command
                 'timestamp' => '',
                 'sessionId' => '',
                 'itemParameters' => '',
-                'itemId' => 'abb-706004846792',
+                'itemId' => $product->api_id,
                 'blockList' => 'Description',
             ];
 
