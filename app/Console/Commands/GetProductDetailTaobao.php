@@ -55,7 +55,7 @@ class GetProductDetailTaobao extends Command
                 'timestamp' => '',
                 'sessionId' => '',
                 'itemParameters' => '',
-                'itemId' => '657736101973',
+                'itemId' => $product->api_id,
                 'blockList' => 'Description',
             ];
 
@@ -136,14 +136,20 @@ class GetProductDetailTaobao extends Command
                             if ($productValue) {
                                 // Determine size based on firstVid
                                 $sizeMapping = [
+                                    '28314' => 'S',
                                     '28315' => 'M',
                                     '28316' => 'L',
                                     '28317' => 'XL',
-                                    '28318' => 'XXL'
+                                    '28318' => 'XXL',
                                 ];
 
                                 // Check if firstVid matches any of the predefined sizes
-                                $size = isset($sizeMapping[$firstVid]) ? $sizeMapping[$firstVid] : $this->translateNameToVietnamese($firstVid);
+                                if (isset($sizeMapping[$firstVid])) {
+                                    $size = $sizeMapping[$firstVid];
+                                } else {
+                                    // If firstVid does not match predefined sizes, look it up in ItemAttribute
+                                    $size = $this->findAndTranslateSize($firstVid, $xml);
+                                }
 
                                 // Store attributes with the ProductValue ID for the second ValuedConfigurator
                                 ProductAttributeTaobaoModel::updateOrCreate(
@@ -156,7 +162,7 @@ class GetProductDetailTaobao extends Command
                                         'price' => $price,
                                     ]
                                 );
-                                $this->info("Product attribute saved for product: {$product->api_id}, Second Pid/Vid: {$itemAttributeData}, Size: {$size}");
+                                $this->info("Product attribute saved for product: {$product->api_id}, Second Pid/Vid: {$itemAttributeData}, Size: {$size}, Quantity: {$quantity}, Price: {$price}");
                             } else {
                                 // Log an error if the second ValuedConfigurator doesn't match any ProductValue
                                 $this->error("No ProductValue found for Pid/Vid: {$itemAttributeData}, product: {$product->api_id}");
@@ -182,5 +188,26 @@ class GetProductDetailTaobao extends Command
             $this->error('Translation failed: ' . $e->getMessage());
             return $name;
         }
+    }
+
+    protected function findAndTranslateSize($firstVid, $xml)
+    {
+        // Iterate through each ItemAttribute to find a matching Vid
+        if (isset($xml->Result->Item->Attributes->ItemAttribute)) {
+            foreach ($xml->Result->Item->Attributes->ItemAttribute as $attribute) {
+                $attributeVid = isset($attribute['Vid']) ? (string)$attribute['Vid'] : null;
+                if ($attributeVid === $firstVid) {
+                    // Get the OriginalValue if it exists
+                    $originalValue = isset($attribute->OriginalValue) ? (string)$attribute->OriginalValue : null;
+                    if ($originalValue) {
+                        // Translate the OriginalValue
+                        $translatedValue = $this->translateNameToVietnamese($originalValue);
+                        return $translatedValue;
+                    }
+                }
+            }
+        }
+        // If no match is found, return the original Vid
+        return $firstVid;
     }
 }
